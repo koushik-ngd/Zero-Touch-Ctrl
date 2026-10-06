@@ -13,6 +13,7 @@ Features:
 
 from __future__ import annotations
 
+import sys
 import threading
 import time
 import tkinter as tk
@@ -40,12 +41,13 @@ from handctrl.utils.logger import get_logger
 log = get_logger()
 
 # ---------------------------------------------------------------------------
-# Design System (Zinc / Linear Dark Theme)
+# Design System (Zinc / Obsidian / Modern Cyber Theme)
 # ---------------------------------------------------------------------------
 BG_MAIN = "#09090b"  # Deep black/zinc
 SURFACE_CARD = "#121215"  # Card background
 SURFACE_ELEVATED = "#18181b"  # Elevated background
 BORDER_SUBTLE = "#27272a"  # Subtle borders
+BORDER_ACTIVE = "#38bdf8"
 BORDER_FOCUS = "#3f3f46"
 
 FG_TITLE = "#ffffff"
@@ -53,16 +55,47 @@ FG_PRIMARY = "#f4f4f5"
 FG_SECONDARY = "#a1a1aa"
 FG_MUTED = "#71717a"
 
-COLOR_GREEN = "#22c55e"
-COLOR_GREEN_BG = "#14532d"
+COLOR_GREEN = "#10b981"
+COLOR_GREEN_BG = "#064e3b"
 COLOR_RED = "#ef4444"
 COLOR_RED_BG = "#7f1d1d"
 COLOR_AMBER = "#f59e0b"
 COLOR_AMBER_BG = "#78350f"
 COLOR_BLUE = "#3b82f6"
+COLOR_CYAN = "#38bdf8"
 
 PREVIEW_WIDTH = 540
 PREVIEW_HEIGHT = 405
+
+
+def _bind_hover(
+    widget: tk.Widget,
+    normal_bg: str,
+    hover_bg: str,
+    normal_fg: Optional[str] = None,
+    hover_fg: Optional[str] = None,
+) -> None:
+    """Helper to attach sleek hover transitions to buttons."""
+    def on_enter(_):
+        try:
+            if widget.cget("state") != "disabled":
+                widget.configure(bg=hover_bg)
+                if hover_fg:
+                    widget.configure(fg=hover_fg)
+        except Exception:
+            pass
+
+    def on_leave(_):
+        try:
+            if widget.cget("state") != "disabled":
+                widget.configure(bg=normal_bg)
+                if normal_fg:
+                    widget.configure(fg=normal_fg)
+        except Exception:
+            pass
+
+    widget.bind("<Enter>", on_enter, add="+")
+    widget.bind("<Leave>", on_leave, add="+")
 
 
 class HandCtrlApp:
@@ -101,6 +134,9 @@ class HandCtrlApp:
         self._root.resizable(False, False)
         self._root.protocol("WM_DELETE_WINDOW", self._on_close)
 
+        # Apply Windows 11 dark mode title bar & caption color
+        self._apply_dark_title_bar()
+
         # Dynamic Island HUD overlay
         self._hud = DynamicIslandHUD(
             self._root,
@@ -121,6 +157,27 @@ class HandCtrlApp:
         # Spacebar click in Pen Mode
         self._root.bind("<space>", self._on_spacebar_click)
 
+    def _apply_dark_title_bar(self) -> None:
+        """Apply Windows 10/11 immersive dark mode and caption color to the native window frame."""
+        if sys.platform != "win32":
+            return
+        try:
+            import ctypes
+            from ctypes import c_int, byref
+            self._root.update_idletasks()
+            hwnd = ctypes.windll.user32.GetParent(self._root.winfo_id())
+            if not hwnd:
+                hwnd = self._root.winfo_id()
+            # DWMWA_USE_IMMERSIVE_DARK_MODE (20 on Win11 / Win10 20H1+, 19 on older Win10)
+            val = c_int(1)
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 20, byref(val), 4)
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 19, byref(val), 4)
+            # DWMWA_CAPTION_COLOR = 35 (BGR: 0x000B0909 for #09090b)
+            caption_color = c_int(0x000B0909)
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 35, byref(caption_color), 4)
+        except Exception as exc:
+            log.debug("Could not set Windows dark title bar: %s", exc)
+
     # ==================================================================
     # UI Layout Construction
     # ==================================================================
@@ -128,7 +185,7 @@ class HandCtrlApp:
         root = self._root
 
         # Main wrapper container
-        app_container = tk.Frame(root, bg=BG_MAIN, padx=16, pady=14)
+        app_container = tk.Frame(root, bg=BG_MAIN, padx=16, pady=12)
         app_container.pack(fill="both", expand=True)
 
         # --------------------------------------------------------------
@@ -141,27 +198,38 @@ class HandCtrlApp:
         brand_frame = tk.Frame(header, bg=BG_MAIN)
         brand_frame.pack(side="left")
 
+        logo_lbl = tk.Label(
+            brand_frame,
+            text="✦",
+            bg=BG_MAIN,
+            fg="#38bdf8",
+            font=("Segoe UI", 16, "bold"),
+        )
+        logo_lbl.pack(side="left", padx=(0, 6))
+
         title_lbl = tk.Label(
             brand_frame,
             text="ZERO-TOUCH-CTRL",
             bg=BG_MAIN,
             fg=FG_TITLE,
-            font=("Segoe UI", 15, "bold"),
+            font=("Segoe UI", 14, "bold"),
         )
         title_lbl.pack(side="left")
 
         tag_lbl = tk.Label(
             brand_frame,
-            text="DESKTOP",
-            bg="#27272a",
-            fg=FG_MUTED,
+            text="AI AIR MOUSE",
+            bg="#18181b",
+            fg="#38bdf8",
             font=("Segoe UI", 7, "bold"),
-            padx=6,
-            pady=1,
+            padx=7,
+            pady=2,
+            highlightbackground="#27272a",
+            highlightthickness=1,
         )
-        tag_lbl.pack(side="left", padx=(8, 0), pady=(3, 0))
+        tag_lbl.pack(side="left", padx=(10, 0))
 
-        # Status pills on top right
+        # Status pills & Quick Controls on top right
         status_bar = tk.Frame(header, bg=BG_MAIN)
         status_bar.pack(side="right")
 
@@ -176,13 +244,14 @@ class HandCtrlApp:
             font=("Segoe UI", 8, "bold"),
             relief="flat",
             cursor="hand2",
-            padx=9,
+            padx=10,
             pady=3,
             highlightbackground="#27272a",
             highlightthickness=1,
             command=self._toggle_tracking_mode,
         )
         self._mode_btn.pack(side="left", padx=(0, 8))
+        _bind_hover(self._mode_btn, "#18181b", "#27272a", "#a1a1aa", FG_TITLE)
 
         # Mini HUD toggle button
         self._mini_hud_btn = tk.Button(
@@ -195,20 +264,21 @@ class HandCtrlApp:
             font=("Segoe UI", 8, "bold"),
             relief="flat",
             cursor="hand2",
-            padx=9,
+            padx=10,
             pady=3,
             highlightbackground="#27272a",
             highlightthickness=1,
             command=self._enter_mini_mode,
         )
         self._mini_hud_btn.pack(side="left", padx=(0, 8))
+        _bind_hover(self._mini_hud_btn, "#18181b", "#27272a", "#38bdf8", FG_TITLE)
 
         self._cam_pill = tk.Label(
             status_bar,
-            text="● CAMERA DISCONNECTED",
+            text="● CAMERA OFF",
             bg="#1f1414",
             fg=COLOR_RED,
-            font=("Segoe UI", 9, "bold"),
+            font=("Segoe UI", 8, "bold"),
             padx=10,
             pady=4,
             relief="flat",
@@ -219,10 +289,10 @@ class HandCtrlApp:
 
         self._ctrl_pill = tk.Label(
             status_bar,
-            text="● CONTROL DISABLED",
+            text="● CONTROL OFF",
             bg="#1f1414",
             fg=COLOR_RED,
-            font=("Segoe UI", 9, "bold"),
+            font=("Segoe UI", 8, "bold"),
             padx=10,
             pady=4,
             relief="flat",
@@ -248,7 +318,7 @@ class HandCtrlApp:
             highlightbackground="#27272a",
             highlightthickness=1,
             padx=8,
-            pady=4,
+            pady=5,
         )
 
         tk.Label(
@@ -261,7 +331,7 @@ class HandCtrlApp:
 
         tk.Label(
             self._pen_toolbar,
-            text="Click pen in video or pick:",
+            text="Click tip in preview or select:",
             bg="#121215",
             fg=FG_MUTED,
             font=("Segoe UI", 8),
@@ -281,8 +351,8 @@ class HandCtrlApp:
                 font=("Segoe UI", 7, "bold"),
                 relief="flat",
                 cursor="hand2",
-                padx=5,
-                pady=1,
+                padx=6,
+                pady=2,
                 command=lambda c=col_name: self._set_pen_color(c),
             ).pack(side="left", padx=2)
 
@@ -293,7 +363,7 @@ class HandCtrlApp:
             fg=COLOR_GREEN,
             font=("Segoe UI", 8, "bold"),
             padx=6,
-            pady=1,
+            pady=2,
             highlightbackground="#27272a",
             highlightthickness=1,
         )
@@ -312,7 +382,6 @@ class HandCtrlApp:
             padx=10,
             pady=8,
         )
-        # Packed conditionally in _start_calibration_mode
 
         self._cal_hud_instruction = tk.Label(
             self._cal_hud_frame,
@@ -351,8 +420,8 @@ class HandCtrlApp:
         )
         self._cal_cancel_btn.pack(side="right")
 
-        # Live Info Card below camera
-        info_card = tk.Frame(
+        # Cyber Telemetry Card below camera
+        telemetry_card = tk.Frame(
             left_col,
             bg=SURFACE_CARD,
             highlightbackground=BORDER_SUBTLE,
@@ -360,54 +429,80 @@ class HandCtrlApp:
             padx=14,
             pady=10,
         )
-        info_card.pack(fill="x", pady=(10, 0))
+        telemetry_card.pack(fill="x", pady=(10, 0))
 
-        # Row 1: Gesture & State
-        info_row1 = tk.Frame(info_card, bg=SURFACE_CARD)
-        info_row1.pack(fill="x")
+        # Row 1: Active Gesture & State Badge & FPS
+        tel_row1 = tk.Frame(telemetry_card, bg=SURFACE_CARD)
+        tel_row1.pack(fill="x")
 
         self._gesture_val_lbl = tk.Label(
-            info_row1,
-            text="GESTURE: IDLE",
+            tel_row1,
+            text="⚡ GESTURE: IDLE",
             bg=SURFACE_CARD,
             fg=FG_TITLE,
-            font=("Segoe UI", 12, "bold"),
+            font=("Segoe UI", 11, "bold"),
             anchor="w",
         )
         self._gesture_val_lbl.pack(side="left")
 
+        right_pills = tk.Frame(tel_row1, bg=SURFACE_CARD)
+        right_pills.pack(side="right")
+
         self._state_badge = tk.Label(
-            info_row1,
-            text="IDLE",
-            bg="#27272a",
+            right_pills,
+            text="STANDBY",
+            bg="#1e2029",
             fg=FG_SECONDARY,
             font=("Segoe UI", 8, "bold"),
-            padx=6,
-            pady=1,
+            padx=8,
+            pady=2,
+            highlightbackground="#2b2f3d",
+            highlightthickness=1,
         )
-        self._state_badge.pack(side="right")
+        self._state_badge.pack(side="left", padx=(0, 6))
 
-        # Row 2: Confidence & FPS
-        info_row2 = tk.Frame(info_card, bg=SURFACE_CARD)
-        info_row2.pack(fill="x", pady=(6, 0))
+        self._fps_val_lbl = tk.Label(
+            right_pills,
+            text="0 FPS",
+            bg="#18181b",
+            fg=FG_MUTED,
+            font=("Segoe UI", 8, "bold"),
+            padx=7,
+            pady=2,
+            highlightbackground="#27272a",
+            highlightthickness=1,
+        )
+        self._fps_val_lbl.pack(side="left")
+
+        # Row 2: Live Confidence Meter with dynamic visual progress bar
+        tel_row2 = tk.Frame(telemetry_card, bg=SURFACE_CARD)
+        tel_row2.pack(fill="x", pady=(8, 0))
 
         self._conf_val_lbl = tk.Label(
-            info_row2,
-            text="Confidence: —",
+            tel_row2,
+            text="Confidence: 0%",
             bg=SURFACE_CARD,
             fg=FG_SECONDARY,
             font=("Segoe UI", 9),
+            anchor="w",
         )
         self._conf_val_lbl.pack(side="left")
 
-        self._fps_val_lbl = tk.Label(
-            info_row2,
-            text="FPS: 0",
-            bg=SURFACE_CARD,
-            fg=FG_MUTED,
-            font=("Segoe UI", 9),
+        self._conf_bar_width = 160
+        self._conf_bar_height = 8
+        self._conf_canvas = tk.Canvas(
+            tel_row2,
+            width=self._conf_bar_width,
+            height=self._conf_bar_height,
+            bg="#1c1d24",
+            highlightthickness=1,
+            highlightbackground="#2b2f3d",
+            bd=0,
         )
-        self._fps_val_lbl.pack(side="right")
+        self._conf_canvas.pack(side="right", pady=4)
+        self._conf_bar_fill = self._conf_canvas.create_rectangle(
+            0, 0, 0, self._conf_bar_height, fill=COLOR_GREEN, width=0
+        )
 
         # Camera toggle button row
         cam_btn_row = tk.Frame(left_col, bg=BG_MAIN)
@@ -416,25 +511,28 @@ class HandCtrlApp:
         self._start_cam_btn = tk.Button(
             cam_btn_row,
             text="▶ START CAMERA",
-            bg="#27272a",
+            bg="#1e2029",
             fg=FG_PRIMARY,
-            activebackground="#3f3f46",
+            activebackground="#2b2f3d",
             activeforeground=FG_TITLE,
-            font=("Segoe UI", 10, "bold"),
+            font=("Segoe UI", 9, "bold"),
             relief="flat",
             cursor="hand2",
             padx=14,
             pady=8,
+            highlightbackground="#2b2f3d",
+            highlightthickness=1,
             command=self._toggle_camera,
         )
         self._start_cam_btn.pack(side="left", fill="x", expand=True)
+        _bind_hover(self._start_cam_btn, "#1e2029", "#2b2f3d", FG_PRIMARY, FG_TITLE)
 
         # === RIGHT COLUMN: CONTROL & SETTINGS ===
-        right_col = tk.Frame(body_split, bg=BG_MAIN, width=370)
+        right_col = tk.Frame(body_split, bg=BG_MAIN, width=380)
         right_col.pack(side="right", fill="both", expand=True)
 
         # --------------------------------------------------------------
-        # CONTROL Card (Main action & status list)
+        # COMMAND CENTER Card (Hero control button & quick telemetry)
         # --------------------------------------------------------------
         ctrl_card = tk.Frame(
             right_col,
@@ -446,19 +544,31 @@ class HandCtrlApp:
         )
         ctrl_card.pack(fill="x", pady=(0, 10))
 
+        ctrl_header = tk.Frame(ctrl_card, bg=SURFACE_CARD)
+        ctrl_header.pack(fill="x", pady=(0, 8))
+
         ctrl_title = tk.Label(
-            ctrl_card,
-            text="CONTROL",
+            ctrl_header,
+            text="COMMAND CENTER",
             bg=SURFACE_CARD,
             fg=FG_MUTED,
             font=("Segoe UI", 8, "bold"),
         )
-        ctrl_title.pack(anchor="w", pady=(0, 8))
+        ctrl_title.pack(side="left")
 
-        # Main Enable/Disable Control Button
+        self._cursor_status_lbl = tk.Label(
+            ctrl_header,
+            text="○ Standby",
+            bg=SURFACE_CARD,
+            fg=FG_MUTED,
+            font=("Segoe UI", 8, "bold"),
+        )
+        self._cursor_status_lbl.pack(side="right")
+
+        # Main Hero Enable/Disable Control Button
         self._control_btn = tk.Button(
             ctrl_card,
-            text="ENABLE CONTROL",
+            text="⚡ ACTIVATE GESTURE CONTROL",
             bg=COLOR_GREEN_BG,
             fg=COLOR_GREEN,
             activebackground="#166534",
@@ -468,24 +578,24 @@ class HandCtrlApp:
             cursor="hand2",
             pady=10,
             state="disabled",
+            highlightbackground="#1b4322",
+            highlightthickness=1,
             command=self._toggle_control,
         )
-        self._control_btn.pack(fill="x", pady=(0, 12))
+        self._control_btn.pack(fill="x")
+        _bind_hover(self._control_btn, COLOR_GREEN_BG, "#166534", COLOR_GREEN, FG_TITLE)
 
-        # Active gestures mapping list
-        mapping_list = tk.Frame(ctrl_card, bg=SURFACE_CARD)
-        mapping_list.pack(fill="x")
-
-        self._cursor_status_lbl = self._add_mapping_row(mapping_list, "Cursor", "● Active")
-        self._add_mapping_row(mapping_list, "Click", "PINCH")
-        self._add_mapping_row(mapping_list, "Drag", "PINCH + MOVE")
-        self._add_mapping_row(mapping_list, "Scroll", "TWO FINGERS")
-        self._add_mapping_row(mapping_list, "Pause", "OPEN PALM")
-        self._add_mapping_row(mapping_list, "Play/Pause", "THUMBS UP")
-        self._add_mapping_row(mapping_list, "Emergency Stop", "HOLD PALM (1s)")
+        shortcut_hint = tk.Label(
+            ctrl_card,
+            text="Global Toggle Shortcut: Ctrl + Alt + H",
+            bg=SURFACE_CARD,
+            fg=FG_MUTED,
+            font=("Segoe UI", 8),
+        )
+        shortcut_hint.pack(pady=(6, 0))
 
         # --------------------------------------------------------------
-        # SETTINGS Card
+        # SETTINGS Card (Segmented Tabbed Command Center)
         # --------------------------------------------------------------
         settings_card = tk.Frame(
             right_col,
@@ -507,28 +617,28 @@ class HandCtrlApp:
         )
 
         # --------------------------------------------------------------
-        # Emergency Footer Bar
+        # Footer Bar
         # --------------------------------------------------------------
         footer = tk.Frame(app_container, bg=BG_MAIN)
-        footer.pack(fill="x", pady=(10, 0))
+        footer.pack(fill="x", pady=(12, 0))
 
         hotkey_notice = tk.Label(
             footer,
-            text="Emergency toggle: CTRL + ALT + H",
+            text="⌨ Hotkeys: Ctrl+Alt+H (Toggle)  •  Ctrl+Alt+P (Mode)  •  Space (Pen Click)",
             bg=BG_MAIN,
             fg=FG_MUTED,
-            font=("Segoe UI", 9, "bold"),
+            font=("Segoe UI", 8),
         )
         hotkey_notice.pack(side="left")
 
-        ready_notice = tk.Label(
+        privacy_notice = tk.Label(
             footer,
-            text="Local ML • No Cloud • Zero Latency",
+            text="🔒 100% On-Device AI  •  Zero Cloud Latency",
             bg=BG_MAIN,
             fg="#52525b",
             font=("Segoe UI", 8),
         )
-        ready_notice.pack(side="right")
+        privacy_notice.pack(side="right")
 
     def _add_mapping_row(self, parent: tk.Widget, label: str, value: str) -> tk.Label:
         row = tk.Frame(parent, bg=SURFACE_CARD)
@@ -581,9 +691,12 @@ class HandCtrlApp:
             return
 
         self._cam_pill.configure(
-            text="● CAMERA CONNECTED", bg="#142618", fg=COLOR_GREEN, highlightbackground="#1b4322"
+            text="● CAMERA LIVE", bg="#142618", fg=COLOR_GREEN, highlightbackground="#1b4322"
         )
-        self._start_cam_btn.configure(text="■ STOP CAMERA", bg="#3f2727", fg=COLOR_RED)
+        self._start_cam_btn.configure(
+            text="■ STOP CAMERA", bg="#3f1d1d", fg=COLOR_RED, highlightbackground="#7f1d1d"
+        )
+        _bind_hover(self._start_cam_btn, "#3f1d1d", "#582020", COLOR_RED, "#ffffff")
         self._control_btn.configure(state="normal")
         self._start_processing()
         log.info("Webcam started successfully")
@@ -601,11 +714,21 @@ class HandCtrlApp:
 
         self._camera_panel.reset_placeholder()
         self._cam_pill.configure(
-            text="● CAMERA DISCONNECTED", bg="#1f1414", fg=COLOR_RED, highlightbackground="#3b1d1d"
+            text="● CAMERA OFF", bg="#1f1414", fg=COLOR_RED, highlightbackground="#3b1d1d"
         )
-        self._start_cam_btn.configure(text="▶ START CAMERA", bg="#27272a", fg=FG_PRIMARY)
+        self._start_cam_btn.configure(
+            text="▶ START CAMERA", bg="#1e2029", fg=FG_PRIMARY, highlightbackground="#2b2f3d"
+        )
+        _bind_hover(self._start_cam_btn, "#1e2029", "#2b2f3d", FG_PRIMARY, FG_TITLE)
         self._control_btn.configure(state="disabled")
-        self._fps_val_lbl.configure(text="FPS: 0")
+        self._fps_val_lbl.configure(text="0 FPS")
+        self._conf_val_lbl.configure(text="Confidence: 0%")
+        self._gesture_val_lbl.configure(text="⚡ GESTURE: IDLE")
+        self._state_badge.configure(text="STANDBY", bg="#1e2029", fg=FG_SECONDARY, highlightbackground="#2b2f3d")
+        try:
+            self._conf_canvas.coords(self._conf_bar_fill, 0, 0, 0, self._conf_bar_height)
+        except Exception:
+            pass
         log.info("Webcam stopped")
 
     def _on_camera_switch(self, new_index: int) -> None:
@@ -700,12 +823,17 @@ class HandCtrlApp:
             self._gesture_detector.disable()
             self._action_manager.disable()
             self._control_btn.configure(
-                text="ENABLE CONTROL", bg=COLOR_GREEN_BG, fg=COLOR_GREEN, activebackground="#166534"
+                text="⚡ ACTIVATE GESTURE CONTROL",
+                bg=COLOR_GREEN_BG,
+                fg=COLOR_GREEN,
+                activebackground="#166534",
+                highlightbackground="#1b4322",
             )
+            _bind_hover(self._control_btn, COLOR_GREEN_BG, "#166534", COLOR_GREEN, FG_TITLE)
             self._ctrl_pill.configure(
-                text="● CONTROL DISABLED", bg="#1f1414", fg=COLOR_RED, highlightbackground="#3b1d1d"
+                text="● CONTROL OFF", bg="#1f1414", fg=COLOR_RED, highlightbackground="#3b1d1d"
             )
-            self._cursor_status_lbl.configure(text="○ Inactive", fg=FG_MUTED)
+            self._cursor_status_lbl.configure(text="○ Standby", fg=FG_MUTED)
             log.info("Gesture control toggled OFF")
         else:
             if not self._camera.is_running:
@@ -717,10 +845,15 @@ class HandCtrlApp:
             self._gesture_detector.enable()
             self._action_manager.enable()
             self._control_btn.configure(
-                text="DISABLE CONTROL", bg=COLOR_RED_BG, fg="#fca5a5", activebackground="#991b1b"
+                text="⏹ DEACTIVATE GESTURE CONTROL",
+                bg=COLOR_RED_BG,
+                fg="#fca5a5",
+                activebackground="#991b1b",
+                highlightbackground="#7f1d1d",
             )
+            _bind_hover(self._control_btn, COLOR_RED_BG, "#991b1b", "#fca5a5", FG_TITLE)
             self._ctrl_pill.configure(
-                text="● CONTROL ACTIVE", bg="#142618", fg=COLOR_GREEN, highlightbackground="#1b4322"
+                text="● CONTROL LIVE", bg="#142618", fg=COLOR_GREEN, highlightbackground="#1b4322"
             )
             self._cursor_status_lbl.configure(text="● Active", fg=COLOR_GREEN)
             log.info("Gesture control toggled ON")
@@ -879,21 +1012,48 @@ class HandCtrlApp:
 
     def _update_hud_labels(self, gesture: str, state: str, conf: float, fps: float) -> None:
         """Update live status labels on main UI."""
-        self._gesture_val_lbl.configure(text=f"GESTURE: {gesture}")
+        icon = "⚡"
+        if "TAP" in gesture or "CLICK" in gesture:
+            icon = "👆"
+        elif "PINCH" in gesture or "DRAG" in gesture:
+            icon = "👌"
+        elif "SCROLL" in gesture:
+            icon = "↕️"
+        elif "PAUSED" in gesture:
+            icon = "✋"
+        elif "PEN" in gesture:
+            icon = "🖊️"
+        elif "THUMBS" in gesture or "MEDIA" in gesture:
+            icon = "👍"
+        elif "SWIPE" in gesture:
+            icon = "💨"
+        elif "CALIBRAT" in gesture:
+            icon = "🎯"
+
+        self._gesture_val_lbl.configure(text=f"{icon} {gesture}")
 
         # State badge formatting
         self._state_badge.configure(text=state)
         if state in ("CURSOR", "DRAGGING", "SCROLLING", "PEN_ACTIVE", "PEN_CLICK", "TAP_DETECTED"):
-            self._state_badge.configure(bg=COLOR_GREEN_BG, fg=COLOR_GREEN)
+            self._state_badge.configure(bg=COLOR_GREEN_BG, fg=COLOR_GREEN, highlightbackground="#1b4322")
         elif state == "PAUSED":
-            self._state_badge.configure(bg=COLOR_AMBER_BG, fg=COLOR_AMBER)
+            self._state_badge.configure(bg=COLOR_AMBER_BG, fg=COLOR_AMBER, highlightbackground="#78350f")
         elif state == "DISABLED":
-            self._state_badge.configure(bg="#27272a", fg=FG_MUTED)
+            self._state_badge.configure(bg="#27272a", fg=FG_MUTED, highlightbackground="#3f3f46")
         else:
-            self._state_badge.configure(bg="#27272a", fg=FG_SECONDARY)
+            self._state_badge.configure(bg="#1e2029", fg=FG_SECONDARY, highlightbackground="#2b2f3d")
 
         self._conf_val_lbl.configure(text=f"Confidence: {conf:.0%}")
-        self._fps_val_lbl.configure(text=f"FPS: {fps:.0f}")
+        self._fps_val_lbl.configure(text=f"{fps:.0f} FPS")
+
+        # Dynamically update the visual confidence progress bar
+        try:
+            bar_w = int(self._conf_bar_width * max(0.0, min(1.0, conf)))
+            bar_color = COLOR_GREEN if conf >= 0.7 else (COLOR_AMBER if conf >= 0.4 else COLOR_RED)
+            self._conf_canvas.coords(self._conf_bar_fill, 0, 0, bar_w, self._conf_bar_height)
+            self._conf_canvas.itemconfig(self._conf_bar_fill, fill=bar_color)
+        except Exception:
+            pass
 
     # ==================================================================
     # Screen Calibration Workflow
@@ -978,7 +1138,7 @@ class HandCtrlApp:
         if self._control_enabled:
             self._toggle_control()
             self._ctrl_pill.configure(
-                text="● CONTROL DISABLED", bg=COLOR_RED_BG, fg="#ffffff", highlightbackground=COLOR_RED
+                text="● EMERGENCY STOP", bg=COLOR_RED_BG, fg="#ffffff", highlightbackground=COLOR_RED
             )
 
     # ==================================================================

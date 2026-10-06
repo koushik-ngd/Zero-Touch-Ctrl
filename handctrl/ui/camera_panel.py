@@ -48,18 +48,53 @@ class CameraPanel:
         self._show_placeholder()
 
     def _show_placeholder(self) -> None:
-        """Display an elegant dark placeholder when camera is stopped."""
-        img = Image.new("RGB", (self._width, self._height), color=(14, 14, 17))
+        """Display an elegant cyber studio viewfinder placeholder when camera is stopped."""
+        w, h = self._width, self._height
+        img = Image.new("RGB", (w, h), color=(10, 11, 15))
         draw = ImageDraw.Draw(img)
-        msg = "Camera inactive\nClick 'START CAMERA' to begin"
-        # Draw placeholder text
-        draw.text(
-            (self._width // 2, self._height // 2),
-            msg,
-            fill=(113, 113, 122),
-            anchor="mm",
-            align="center",
-        )
+
+        # Subtle background dot grid
+        for gx in range(40, w, 55):
+            for gy in range(40, h, 55):
+                draw.point((gx, gy), fill=(22, 25, 35))
+
+        # Viewfinder corner reticles
+        c_len = 22
+        pad = 18
+        c_color = (39, 45, 60)
+        # Top-left
+        draw.line([(pad, pad), (pad + c_len, pad)], fill=c_color, width=2)
+        draw.line([(pad, pad), (pad, pad + c_len)], fill=c_color, width=2)
+        # Top-right
+        draw.line([(w - pad, pad), (w - pad - c_len, pad)], fill=c_color, width=2)
+        draw.line([(w - pad, pad), (w - pad, pad + c_len)], fill=c_color, width=2)
+        # Bottom-left
+        draw.line([(pad, h - pad), (pad + c_len, h - pad)], fill=c_color, width=2)
+        draw.line([(pad, h - pad), (pad, h - pad - c_len)], fill=c_color, width=2)
+        # Bottom-right
+        draw.line([(w - pad, h - pad), (w - pad - c_len, h - pad)], fill=c_color, width=2)
+        draw.line([(w - pad, h - pad), (w - pad, pad + c_len if False else h - pad - c_len)], fill=c_color, width=2)
+
+        # Center target aperture rings
+        cx, cy = w // 2, h // 2
+        draw.ellipse([cx - 38, cy - 38, cx + 38, cy + 38], outline=(25, 30, 42), width=1)
+        draw.ellipse([cx - 24, cy - 24, cx + 24, cy + 24], outline=(56, 189, 248), width=2)
+        draw.ellipse([cx - 4, cy - 4, cx + 4, cy + 4], fill=(56, 189, 248))
+
+        # Crosshair lines
+        draw.line([(cx - 50, cy), (cx - 28, cy)], fill=(56, 189, 248), width=1)
+        draw.line([(cx + 28, cy), (cx + 50, cy)], fill=(56, 189, 248), width=1)
+        draw.line([(cx, cy - 50), (cx, cy - 28)], fill=(56, 189, 248), width=1)
+        draw.line([(cx, cy + 28), (cx, cy + 50)], fill=(56, 189, 248), width=1)
+
+        # Text labels
+        draw.text((cx, cy + 54), "VISION STUDIO STANDBY", fill=(244, 244, 245), anchor="mm")
+        draw.text((cx, cy + 74), "Click  '▶ START WEBCAM'  below to activate tracking", fill=(113, 113, 122), anchor="mm")
+
+        # Technical metadata badges
+        draw.text((pad + 4, h - pad - 6), "FEED: OFFLINE", fill=(63, 75, 96), anchor="ls")
+        draw.text((w - pad - 4, h - pad - 6), "640x480 • 30 FPS", fill=(63, 75, 96), anchor="rs")
+
         self._placeholder = ImageTk.PhotoImage(image=img)
         self._label.configure(image=self._placeholder)
 
