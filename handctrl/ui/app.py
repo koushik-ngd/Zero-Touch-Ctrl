@@ -34,6 +34,7 @@ from handctrl.gestures.gesture_utils import index_tip_position
 from handctrl.ui.camera_panel import CameraPanel
 from handctrl.ui.settings_panel import SettingsPanel
 from handctrl.ui.hud_island import DynamicIslandHUD
+from handctrl.camera.pen_tracker import PenTracker
 from handctrl.utils.logger import get_logger
 
 log = get_logger()
@@ -108,9 +109,17 @@ class HandCtrlApp:
             on_close=self._on_close,
         )
 
+        # Pen Tracking state
+        self._pen_tracker = PenTracker()
+        self._tracking_mode: str = "HAND"  # "HAND" or "PEN"
+        self._pen_clicking: bool = False
+
         # Build UI layout
         self._build_ui()
         self._register_hotkey()
+
+        # Spacebar click in Pen Mode
+        self._root.bind("<space>", self._on_spacebar_click)
 
     # ==================================================================
     # UI Layout Construction
@@ -155,6 +164,25 @@ class HandCtrlApp:
         # Status pills on top right
         status_bar = tk.Frame(header, bg=BG_MAIN)
         status_bar.pack(side="right")
+
+        # Mode toggle button (Hand vs Pen)
+        self._mode_btn = tk.Button(
+            status_bar,
+            text="🖐️ HAND MODE",
+            bg="#18181b",
+            fg="#a1a1aa",
+            activebackground="#27272a",
+            activeforeground=FG_TITLE,
+            font=("Segoe UI", 8, "bold"),
+            relief="flat",
+            cursor="hand2",
+            padx=9,
+            pady=3,
+            highlightbackground="#27272a",
+            highlightthickness=1,
+            command=self._toggle_tracking_mode,
+        )
+        self._mode_btn.pack(side="left", padx=(0, 8))
 
         # Mini HUD toggle button
         self._mini_hud_btn = tk.Button(
@@ -213,8 +241,67 @@ class HandCtrlApp:
         left_col = tk.Frame(body_split, bg=BG_MAIN)
         left_col.pack(side="left", fill="both", padx=(0, 14))
 
+        # Pen control toolbar (appears when in PEN mode)
+        self._pen_toolbar = tk.Frame(
+            left_col,
+            bg="#121215",
+            highlightbackground="#27272a",
+            highlightthickness=1,
+            padx=8,
+            pady=4,
+        )
+
+        tk.Label(
+            self._pen_toolbar,
+            text="🖊️ AIR PEN:",
+            bg="#121215",
+            fg="#38bdf8",
+            font=("Segoe UI", 8, "bold"),
+        ).pack(side="left", padx=(0, 6))
+
+        tk.Label(
+            self._pen_toolbar,
+            text="Click pen in video or pick:",
+            bg="#121215",
+            fg=FG_MUTED,
+            font=("Segoe UI", 8),
+        ).pack(side="left", padx=(0, 4))
+
+        for col_name, col_emoji, hex_bg in [
+            ("BLUE", "🔵 Blue", "#1e3a8a"),
+            ("RED", "🔴 Red", "#881337"),
+            ("GREEN", "🟢 Green", "#14532d"),
+            ("YELLOW", "🟡 Yellow", "#713f12"),
+        ]:
+            tk.Button(
+                self._pen_toolbar,
+                text=col_emoji,
+                bg=hex_bg,
+                fg="#ffffff",
+                font=("Segoe UI", 7, "bold"),
+                relief="flat",
+                cursor="hand2",
+                padx=5,
+                pady=1,
+                command=lambda c=col_name: self._set_pen_color(c),
+            ).pack(side="left", padx=2)
+
+        self._pen_status_lbl = tk.Label(
+            self._pen_toolbar,
+            text="Locked: BLUE",
+            bg="#18181b",
+            fg=COLOR_GREEN,
+            font=("Segoe UI", 8, "bold"),
+            padx=6,
+            pady=1,
+            highlightbackground="#27272a",
+            highlightthickness=1,
+        )
+        self._pen_status_lbl.pack(side="right")
+
         # Camera Preview
         self._camera_panel = CameraPanel(left_col, width=PREVIEW_WIDTH, height=PREVIEW_HEIGHT)
+        self._camera_panel.bind_click(self._on_camera_panel_click)
 
         # Calibration banner overlay (appears only when calibrating)
         self._cal_hud_frame = tk.Frame(
@@ -557,6 +644,54 @@ class HandCtrlApp:
         log.info("Restored full Control Panel from HUD mini-mode")
 
     # ==================================================================
+    # Pen Mode & Color Sampling
+    # ==================================================================
+    def _toggle_tracking_mode(self) -> None:
+        """Toggle between Hand Gestures and Air Pen tracking."""
+        if self._tracking_mode == "HAND":
+            self._tracking_mode = "PEN"
+            self._mode_btn.configure(
+                text="🖊️ PEN MODE", bg="#0c4a6e", fg="#38bdf8", highlightbackground="#0284c7"
+            )
+            self._pen_toolbar.pack(fill="x", pady=(0, 6), before=self._camera_panel._frame_container)
+            log.info("Switched to PEN MODE")
+        else:
+            if self._pen_clicking and self._control_enabled:
+                self._action_manager.mouse.drag_end()
+                self._pen_clicking = False
+            self._tracking_mode = "HAND"
+            self._mode_btn.configure(
+                text="🖐️ HAND MODE", bg="#18181b", fg="#a1a1aa", highlightbackground="#27272a"
+            )
+            self._pen_toolbar.pack_forget()
+            log.info("Switched to HAND MODE")
+
+    def _set_pen_color(self, preset_name: str) -> None:
+        """Switch active pen color preset."""
+        self._pen_tracker.set_preset(preset_name)
+        self._pen_status_lbl.configure(text=f"Locked: {preset_name}", fg=COLOR_GREEN)
+
+    def _on_camera_panel_click(self, frame_x: int, frame_y: int) -> None:
+        """Sample pen tip color when user clicks the preview in Pen Mode."""
+        if self._tracking_mode != "PEN":
+            return
+        frame = self._camera.get_frame()
+        if frame is not None:
+            self._pen_tracker.sample_color_at_pixel(frame, frame_x, frame_y)
+            self._pen_status_lbl.configure(text="Locked: Custom Pen", fg="#38bdf8")
+            log.info("Sampled pen color at pixel (%d, %d)", frame_x, frame_y)
+
+    def _on_spacebar_click(self, event: tk.Event) -> None:
+        """Trigger mouse click via Spacebar when in Pen Mode."""
+        if self._control_enabled and self._tracking_mode == "PEN":
+            self._action_manager.mouse.click()
+            log.info("Spacebar pen click executed")
+
+    def _on_mode_hotkey(self) -> None:
+        log.info("Mode toggle hotkey pressed")
+        self._root.after(0, self._toggle_tracking_mode)
+
+    # ==================================================================
     # Control Toggle & Safety
     # ==================================================================
     def _toggle_control(self) -> None:
@@ -640,6 +775,63 @@ class HandCtrlApp:
                 time.sleep(0.005)
                 continue
 
+            # Check tracking mode: PEN vs HAND
+            if self._tracking_mode == "PEN":
+                pen_res, display = self._pen_tracker.process(display, hand=hand, draw=True)
+
+                if pen_res.detected and pen_res.tip_norm is not None:
+                    tip_x, tip_y = pen_res.tip_norm
+                    if self._control_enabled:
+                        self._action_manager.mouse.move_cursor(tip_x, tip_y)
+
+                        if pen_res.is_clicking:
+                            if not self._pen_clicking:
+                                self._action_manager.mouse.drag_start()
+                                self._pen_clicking = True
+                        else:
+                            if self._pen_clicking:
+                                self._action_manager.mouse.drag_end()
+                                self._pen_clicking = False
+
+                    gesture_name = f"PEN ({self._pen_tracker.active_color_name})"
+                    state_name = "PEN_CLICK" if self._pen_clicking else "PEN_ACTIVE"
+                    conf = pen_res.confidence
+
+                    self._root.after(0, self._camera_panel.update_frame, display, None, None)
+                    self._root.after(0, self._update_hud_labels, gesture_name, state_name, conf, self._camera.fps)
+                    self._root.after(
+                        0,
+                        self._hud.update_hud,
+                        gesture_name,
+                        state_name,
+                        conf,
+                        self._control_enabled,
+                        None,
+                        pen_res.tip_norm,
+                    )
+                else:
+                    if self._pen_clicking and self._control_enabled:
+                        self._action_manager.mouse.drag_end()
+                        self._pen_clicking = False
+
+                    gesture_name = "SEARCHING PEN..."
+                    state_name = "IDLE"
+                    self._root.after(0, self._camera_panel.update_frame, display, None, None)
+                    self._root.after(0, self._update_hud_labels, gesture_name, state_name, 0.0, self._camera.fps)
+                    self._root.after(
+                        0,
+                        self._hud.update_hud,
+                        gesture_name,
+                        state_name,
+                        0.0,
+                        self._control_enabled,
+                        None,
+                        None,
+                    )
+
+                time.sleep(0.005)
+                continue
+
             # Gesture detection
             events = self._gesture_detector.update(hand)
 
@@ -688,7 +880,7 @@ class HandCtrlApp:
 
         # State badge formatting
         self._state_badge.configure(text=state)
-        if state in ("CURSOR", "DRAGGING", "SCROLLING"):
+        if state in ("CURSOR", "DRAGGING", "SCROLLING", "PEN_ACTIVE", "PEN_CLICK"):
             self._state_badge.configure(bg=COLOR_GREEN_BG, fg=COLOR_GREEN)
         elif state == "PAUSED":
             self._state_badge.configure(bg=COLOR_AMBER_BG, fg=COLOR_AMBER)
@@ -766,9 +958,10 @@ class HandCtrlApp:
         try:
             self._hotkey_listener = kb.GlobalHotKeys({
                 EMERGENCY_HOTKEY: self._on_emergency_hotkey,
+                "<ctrl>+<alt>+p": self._on_mode_hotkey,
             })
             self._hotkey_listener.start()
-            log.info("Emergency global hotkey registered: %s", EMERGENCY_HOTKEY)
+            log.info("Emergency global hotkey registered: %s, mode hotkey: Ctrl+Alt+P", EMERGENCY_HOTKEY)
         except Exception as exc:
             log.error("Failed to register emergency hotkey: %s", exc)
 
@@ -810,6 +1003,9 @@ class HandCtrlApp:
 
         if self._control_enabled:
             self._control_enabled = False
+            if self._pen_clicking:
+                self._action_manager.mouse.drag_end()
+                self._pen_clicking = False
             self._gesture_detector.disable()
             self._action_manager.disable()
 

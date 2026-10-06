@@ -27,9 +27,17 @@ All processing happens locally on device — zero cloud APIs, zero telemetry, no
 - **Minimalist Floating Pill:** Raycast / macOS Dynamic Island inspired widget docked at the top of your screen.
 - **Real-Time Hand Skeleton Wireframe:** Dynamic 46x46 micro canvas rendering 21 articulated hand joints and glowing fingertips with auto-centering and scaling.
 - **Always-on-Top & Draggable:** Freely drag and reposition the pill anywhere across multiple monitors.
-- **Live Status Badges:** Dynamic emojis (☝️, 🤏, ✌️, ✋, 👍), confidence percentage, and state indicators.
+- **Live Status Badges:** Dynamic emojis (☝️, 🤏, ✌️, ✋, 👍, 🖊️), confidence percentage, and state indicators.
 - **Seamless Window Switching:** Click `🏝️ MINI HUD` to minimize the main window into the floating island, and click `⛶` to expand back to the full control panel at any time.
 - **Quick Controls:** Direct ON/OFF toggle and clean exit (`✕`) right from the floating pill.
+
+### 🖊️ Air Pen Mode (Optical Stylus & Writing Grip)
+- **Use Any Physical Pen:** Hold any physical pen, stylus, marker, or pencil to navigate your cursor like a laser pointer.
+- **1-Click Color Sampling:** Simply click on your pen tip in the live video feed to lock onto that exact pen's color!
+- **Color Presets:** Fast one-click presets for `🔵 Blue`, `🔴 Red`, `🟢 Green`, and `🟡 Yellow` pens and caps.
+- **AI Hand Writing Grip (Tripod Grip):** Senses natural pen-holding finger posture via MediaPipe. Squeezing thumb and index finger tighter triggers an immediate click/drag!
+- **Zero-Jitter Spacebar Click:** Tap `Spacebar` with your non-dominant hand while holding the pen to click or draw in MS Paint / OneNote without disturbing pen aim.
+- **Mode Toggle Hotkey:** Press `Ctrl + Alt + P` or click `🖐️ HAND MODE` / `🖊️ PEN MODE` to toggle instantly.
 
 ---
 
@@ -95,6 +103,7 @@ hand-gesture-control/
     ├── camera/
     │   ├── camera_manager.py        # Webcam capture (threaded)
     │   ├── hand_tracker.py          # MediaPipe hand tracking
+    │   ├── pen_tracker.py           # Optical pen tip & AI writing grip tracker
     │   └── calibration.py           # 4-corner screen calibration
     │
     ├── gestures/

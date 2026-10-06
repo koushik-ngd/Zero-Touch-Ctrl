@@ -52,6 +52,13 @@ GESTURE_EMOJIS = {
     "OPEN PALM": "✋",
     "THUMBS UP": "👍",
     "GESTURE CONTROL PAUSED": "⏸️",
+    "AIR PEN": "🖊️",
+    "PEN (BLUE)": "🖊️",
+    "PEN (RED)": "🖊️",
+    "PEN (GREEN)": "🖊️",
+    "PEN (YELLOW)": "🖊️",
+    "PEN (CUSTOM)": "🖊️",
+    "AIR PEN (GRIP)": "✍️",
     "NONE": "💤",
 }
 
@@ -257,6 +264,7 @@ class DynamicIslandHUD:
         confidence: float,
         control_enabled: bool,
         landmarks: Optional[np.ndarray] = None,
+        pen_norm: Optional[Tuple[float, float]] = None,
     ) -> None:
         """
         Update the floating HUD display with real-time tracking data.
@@ -279,8 +287,24 @@ class DynamicIslandHUD:
             self._sub_lbl.configure(text=f"● {state_name} • {conf_pct}%", fg=ACCENT_GREEN)
             self._ctrl_btn.configure(text="ON", bg="#166534", fg=ACCENT_GREEN)
 
-        # 3. Draw Micro Wireframe Skeleton
-        self._draw_hand_skeleton(landmarks)
+        # 3. Draw Micro Wireframe Skeleton or Pen Reticle
+        if pen_norm is not None:
+            self._draw_pen_canvas(pen_norm)
+        elif landmarks is not None and len(landmarks) >= 21:
+            self._draw_hand_skeleton(landmarks)
+        else:
+            self._draw_empty_canvas()
+
+    def _draw_pen_canvas(self, pen_norm: Tuple[float, float]) -> None:
+        self._canvas.delete("all")
+        margin = 6
+        scale = self._canvas_size - (margin * 2)
+        px = margin + int(np.clip(pen_norm[0], 0.0, 1.0) * scale)
+        py = margin + int(np.clip(pen_norm[1], 0.0, 1.0) * scale)
+        # Laser crosshair
+        self._canvas.create_line(px - 6, py, px + 6, py, fill=ACCENT_CYAN, width=1.5)
+        self._canvas.create_line(px, py - 6, px, py + 6, fill=ACCENT_CYAN, width=1.5)
+        self._canvas.create_oval(px - 3, py - 3, px + 3, py + 3, fill=ACCENT_GREEN, outline=ACCENT_CYAN)
 
     def _draw_empty_canvas(self) -> None:
         self._canvas.delete("all")

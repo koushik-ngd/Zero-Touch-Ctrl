@@ -8,7 +8,7 @@ and calibration targets inside a Tkinter Label widget.
 from __future__ import annotations
 
 import tkinter as tk
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Callable
 
 import cv2
 import numpy as np
@@ -42,6 +42,9 @@ class CameraPanel:
 
         self._photo: Optional[ImageTk.PhotoImage] = None
         self._placeholder: Optional[ImageTk.PhotoImage] = None
+        self._on_click_callback = None
+        self._last_frame_shape = None
+        self._label.bind("<Button-1>", self._on_label_click)
         self._show_placeholder()
 
     def _show_placeholder(self) -> None:
@@ -59,6 +62,19 @@ class CameraPanel:
         )
         self._placeholder = ImageTk.PhotoImage(image=img)
         self._label.configure(image=self._placeholder)
+
+    def bind_click(self, callback: Optional[Callable[[int, int], None]]) -> None:
+        """Bind a callback invoked with (frame_x, frame_y) when clicking the preview."""
+        self._on_click_callback = callback
+
+    def _on_label_click(self, event: tk.Event) -> None:
+        if self._on_click_callback and self._last_frame_shape:
+            fh, fw = self._last_frame_shape[:2]
+            scale_x = fw / self._width
+            scale_y = fh / self._height
+            fx = int(event.x * scale_x)
+            fy = int(event.y * scale_y)
+            self._on_click_callback(fx, fy)
 
     def reset_placeholder(self) -> None:
         self._show_placeholder()
@@ -80,6 +96,7 @@ class CameraPanel:
         if frame_bgr is None:
             return
 
+        self._last_frame_shape = frame_bgr.shape
         frame = frame_bgr.copy()
 
         # If calibrating, draw calibration HUD on frame
