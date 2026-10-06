@@ -1,0 +1,159 @@
+"""
+HandCtrl — Camera preview panel for the Tkinter UI.
+
+Displays the live webcam feed with hand landmarks, gesture info,
+and calibration targets inside a Tkinter Label widget.
+"""
+
+from __future__ import annotations
+
+import tkinter as tk
+from typing import Optional, Tuple
+
+import cv2
+import numpy as np
+from PIL import Image, ImageTk, ImageDraw
+
+
+class CameraPanel:
+    """Tkinter widget that displays the live camera feed with modern dark borders."""
+
+    def __init__(self, parent: tk.Widget, width: int = 560, height: int = 420) -> None:
+        self._width = width
+        self._height = height
+
+        self._frame_container = tk.Frame(
+            parent,
+            bg="#18181b",
+            highlightbackground="#27272a",
+            highlightthickness=1,
+            bd=0,
+        )
+        self._frame_container.pack(fill="both", expand=True)
+
+        self._label = tk.Label(
+            self._frame_container,
+            bg="#09090b",
+            width=width,
+            height=height,
+            bd=0,
+        )
+        self._label.pack(fill="both", expand=True, padx=2, pady=2)
+
+        self._photo: Optional[ImageTk.PhotoImage] = None
+        self._placeholder: Optional[ImageTk.PhotoImage] = None
+        self._show_placeholder()
+
+    def _show_placeholder(self) -> None:
+        """Display an elegant dark placeholder when camera is stopped."""
+        img = Image.new("RGB", (self._width, self._height), color=(14, 14, 17))
+        draw = ImageDraw.Draw(img)
+        msg = "Camera inactive\nClick 'START CAMERA' to begin"
+        # Draw placeholder text
+        draw.text(
+            (self._width // 2, self._height // 2),
+            msg,
+            fill=(113, 113, 122),
+            anchor="mm",
+            align="center",
+        )
+        self._placeholder = ImageTk.PhotoImage(image=img)
+        self._label.configure(image=self._placeholder)
+
+    def reset_placeholder(self) -> None:
+        self._show_placeholder()
+
+    def update_frame(
+        self,
+        frame_bgr: Optional[np.ndarray],
+        calibration_step: Optional[str] = None,
+        calibration_instruction: Optional[str] = None,
+    ) -> None:
+        """
+        Update the displayed frame.
+
+        Args:
+            frame_bgr: The captured BGR image.
+            calibration_step: Name of active corner ("top_left", etc.) if calibrating.
+            calibration_instruction: Text instruction to display on overlay.
+        """
+        if frame_bgr is None:
+            return
+
+        frame = frame_bgr.copy()
+
+        # If calibrating, draw calibration HUD on frame
+        if calibration_step and calibration_instruction:
+            self._draw_calibration_hud(frame, calibration_step, calibration_instruction)
+
+        # Resize to panel dimensions
+        h, w = frame.shape[:2]
+        if w != self._width or h != self._height:
+            frame = cv2.resize(frame, (self._width, self._height), interpolation=cv2.INTER_LINEAR)
+
+        # Convert BGR -> RGB -> PIL -> Tk PhotoImage
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        img = Image.fromarray(frame_rgb)
+        self._photo = ImageTk.PhotoImage(image=img)
+        self._label.configure(image=self._photo)
+
+    def _draw_calibration_hud(
+        self, frame: np.ndarray, step_name: str, instruction: str
+    ) -> None:
+        """Draw interactive crosshairs and target box for calibration."""
+        h, w = frame.shape[:2]
+
+        # Draw semi-transparent header banner
+        overlay = frame.copy()
+        cv2.rectangle(overlay, (0, 0), (w, 64), (18, 18, 22), -1)
+        cv2.addWeighted(overlay, 0.75, frame, 0.25, 0, frame)
+
+        # Instruction text
+        cv2.putText(
+            frame,
+            "CALIBRATION IN PROGRESS",
+            (16, 24),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (0, 215, 255),
+            2,
+        )
+        cv2.putText(
+            frame,
+            instruction,
+            (16, 50),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.55,
+            (255, 255, 255),
+            1,
+        )
+
+        # Draw target corner box
+        box_size = 60
+        corner_coords = {
+            "top_left": (30, 80),
+            "top_right": (w - 30 - box_size, 80),
+            "bottom_right": (w - 30 - box_size, h - 30 - box_size),
+            "bottom_left": (30, h - 30 - box_size),
+        }
+
+        if step_name in corner_coords:
+            cx, cy = corner_coords[step_name]
+            cv2.rectangle(
+                frame,
+                (cx, cy),
+                (cx + box_size, cy + box_size),
+                (0, 255, 128),
+                2,
+            )
+            # Crosshair inside target box
+            center_x = cx + box_size // 2
+            center_y = cy + box_size // 2
+            cv2.drawMarker(
+                frame,
+                (center_x, center_y),
+                (0, 255, 128),
+                cv2.MARKER_CROSS,
+                20,
+                2,
+            )

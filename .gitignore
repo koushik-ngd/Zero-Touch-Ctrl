@@ -1,0 +1,31 @@
+# Virtual Environment
+.venv/
+env/
+venv/
+ENV/
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Local logs
+*.log
+handctrl/handctrl.log
+
+# User local settings & calibration
+handctrl/settings.json
+handctrl/calibration.json
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
