@@ -23,6 +23,14 @@ All processing happens locally on device — zero cloud APIs, zero telemetry, no
 
 **Emergency hotkey:** `Ctrl + Alt + H` — instantly toggles gesture control on/off.
 
+### 🏝️ Floating Dynamic Island HUD (Mini-Mode)
+- **Minimalist Floating Pill:** Raycast / macOS Dynamic Island inspired widget docked at the top of your screen.
+- **Real-Time Hand Skeleton Wireframe:** Dynamic 46x46 micro canvas rendering 21 articulated hand joints and glowing fingertips with auto-centering and scaling.
+- **Always-on-Top & Draggable:** Freely drag and reposition the pill anywhere across multiple monitors.
+- **Live Status Badges:** Dynamic emojis (☝️, 🤏, ✌️, ✋, 👍), confidence percentage, and state indicators.
+- **Seamless Window Switching:** Click `🏝️ MINI HUD` to minimize the main window into the floating island, and click `⛶` to expand back to the full control panel at any time.
+- **Quick Controls:** Direct ON/OFF toggle and clean exit (`✕`) right from the floating pill.
+
 ---
 
 ## Installation
@@ -101,6 +109,7 @@ hand-gesture-control/
     │
     ├── ui/
     │   ├── app.py                   # Main Tkinter application
+    │   ├── hud_island.py            # Dynamic Island floating HUD widget
     │   ├── camera_panel.py          # Camera preview widget
     │   └── settings_panel.py        # Settings sliders
     │

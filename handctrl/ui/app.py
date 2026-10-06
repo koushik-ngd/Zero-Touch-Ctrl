@@ -33,6 +33,7 @@ from handctrl.gestures.gesture_state import GestureState, GestureName
 from handctrl.gestures.gesture_utils import index_tip_position
 from handctrl.ui.camera_panel import CameraPanel
 from handctrl.ui.settings_panel import SettingsPanel
+from handctrl.ui.hud_island import DynamicIslandHUD
 from handctrl.utils.logger import get_logger
 
 log = get_logger()
@@ -94,10 +95,18 @@ class HandCtrlApp:
 
         # Root Window
         self._root = tk.Tk()
-        self._root.title("HandCtrl — Gesture Control")
+        self._root.title("Zero-Touch-Ctrl — AI Gesture Control")
         self._root.configure(bg=BG_MAIN)
         self._root.resizable(False, False)
         self._root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+        # Dynamic Island HUD overlay
+        self._hud = DynamicIslandHUD(
+            self._root,
+            on_restore=self._restore_from_hud,
+            on_toggle_control=self._toggle_control,
+            on_close=self._on_close,
+        )
 
         # Build UI layout
         self._build_ui()
@@ -125,10 +134,10 @@ class HandCtrlApp:
 
         title_lbl = tk.Label(
             brand_frame,
-            text="HANDCTRL",
+            text="ZERO-TOUCH-CTRL",
             bg=BG_MAIN,
             fg=FG_TITLE,
-            font=("Segoe UI", 16, "bold"),
+            font=("Segoe UI", 15, "bold"),
         )
         title_lbl.pack(side="left")
 
@@ -146,6 +155,25 @@ class HandCtrlApp:
         # Status pills on top right
         status_bar = tk.Frame(header, bg=BG_MAIN)
         status_bar.pack(side="right")
+
+        # Mini HUD toggle button
+        self._mini_hud_btn = tk.Button(
+            status_bar,
+            text="🏝️ MINI HUD",
+            bg="#18181b",
+            fg="#38bdf8",
+            activebackground="#27272a",
+            activeforeground=FG_TITLE,
+            font=("Segoe UI", 8, "bold"),
+            relief="flat",
+            cursor="hand2",
+            padx=9,
+            pady=3,
+            highlightbackground="#27272a",
+            highlightthickness=1,
+            command=self._enter_mini_mode,
+        )
+        self._mini_hud_btn.pack(side="left", padx=(0, 8))
 
         self._cam_pill = tk.Label(
             status_bar,
@@ -510,6 +538,25 @@ class HandCtrlApp:
                 self._toggle_control()
 
     # ==================================================================
+    # Mini Mode (Dynamic Island HUD)
+    # ==================================================================
+    def _enter_mini_mode(self) -> None:
+        """Switch from full desktop control panel to floating Dynamic Island HUD."""
+        self._root.withdraw()
+        self._hud.show()
+        # Automatically start camera if not already running
+        if not self._camera.is_running:
+            self._start_camera()
+        log.info("Entered Dynamic Island HUD mini-mode")
+
+    def _restore_from_hud(self) -> None:
+        """Expand Dynamic Island HUD back to full desktop control panel."""
+        self._hud.hide()
+        self._root.deiconify()
+        self._root.lift()
+        log.info("Restored full Control Panel from HUD mini-mode")
+
+    # ==================================================================
     # Control Toggle & Safety
     # ==================================================================
     def _toggle_control(self) -> None:
@@ -542,6 +589,15 @@ class HandCtrlApp:
             )
             self._cursor_status_lbl.configure(text="● Active", fg=COLOR_GREEN)
             log.info("Gesture control toggled ON")
+
+        # Synchronize HUD island buttons and state
+        self._hud.update_hud(
+            self._gesture_detector.current_gesture_name,
+            self._gesture_detector.gesture_state.name,
+            self._gesture_detector.state.confidence,
+            self._control_enabled,
+            None,
+        )
 
     # ==================================================================
     # Processing Loop (Thread-safe background worker)
@@ -611,8 +667,18 @@ class HandCtrlApp:
             if self._gesture_detector.gesture_state == GestureState.PAUSED:
                 gesture_name = "GESTURE CONTROL PAUSED"
 
+            lm_array = hand.landmark_array if hand is not None else None
             self._root.after(0, self._camera_panel.update_frame, display, None, None)
             self._root.after(0, self._update_hud_labels, gesture_name, state_name, conf, self._camera.fps)
+            self._root.after(
+                0,
+                self._hud.update_hud,
+                gesture_name,
+                state_name,
+                conf,
+                self._control_enabled,
+                lm_array,
+            )
 
             time.sleep(0.005)
 
@@ -753,6 +819,9 @@ class HandCtrlApp:
 
         if self._hotkey_listener is not None:
             self._hotkey_listener.stop()
+
+        if self._hud is not None:
+            self._hud.hide()
 
         self._root.destroy()
         log.info("HandCtrl closed cleanly")
