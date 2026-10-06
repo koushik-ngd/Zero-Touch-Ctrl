@@ -31,6 +31,7 @@ from handctrl.gestures.gesture_utils import (
     index_tip_position,
     hand_center,
 )
+from handctrl.gestures.depth_tap import DepthTapDetector
 from handctrl.utils.logger import get_logger
 
 log = get_logger()
@@ -46,10 +47,21 @@ class GestureDetector:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
         self._state = GestureStateData()
+        self._depth_tap = DepthTapDetector(
+            penetration_threshold=getattr(settings, "depth_tap_threshold", 0.045),
+        )
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+    @property
+    def depth_tap(self) -> DepthTapDetector:
+        return self._depth_tap
+
+    def draw_effects(self, frame_bgr: np.ndarray) -> None:
+        """Render active gesture visual effects (e.g. depth tap ripples)."""
+        self._depth_tap.draw_ripples(frame_bgr)
+
     @property
     def state(self) -> GestureStateData:
         return self._state
@@ -80,6 +92,7 @@ class GestureDetector:
         self._state.reset_pinch()
         self._state.reset_scroll()
         self._state.reset_palm()
+        self._depth_tap.reset()
         log.info("Gesture control DISABLED")
         return events
 
@@ -189,12 +202,30 @@ class GestureDetector:
             s.state = GestureState.IDLE
             s.reset_scroll()
 
-        # ---- INDEX CURSOR ----
+        # ---- INDEX CURSOR & 3D DEPTH TAP ----
         if gesture == GestureName.INDEX_CURSOR:
-            s.state = GestureState.CURSOR
-            x, y = index_tip_position(lm)
-            events.append(GestureEvent("cursor_move", {"x": x, "y": y}))
+            tap_fired = False
+            aim_x, aim_y = index_tip_position(lm)
+
+            if getattr(self._settings, "enable_depth_tap", True):
+                self._depth_tap.penetration_threshold = getattr(self._settings, "depth_tap_threshold", 0.045)
+                tap_fired, tap_pos = self._depth_tap.update(lm, is_index_pointing=True)
+                if tap_pos is not None:
+                    aim_x, aim_y = tap_pos
+
+            if tap_fired:
+                s.state = GestureState.TAP_DETECTED
+                s.current_gesture = GestureName.AIR_TAP
+                events.append(GestureEvent("click", {"x": aim_x, "y": aim_y}))
+                log.info("3D Depth Tap triggered click at (%.3f, %.3f)", aim_x, aim_y)
+            else:
+                s.state = GestureState.CURSOR
+                events.append(GestureEvent("cursor_move", {"x": aim_x, "y": aim_y}))
+
             return events
+        else:
+            # Inform depth tap that finger is no longer pointing
+            self._depth_tap.update(lm, is_index_pointing=False)
 
         # ---- PAUSED → IDLE if gesture changed from OPEN_PALM ----
         if s.state == GestureState.PAUSED and gesture != GestureName.OPEN_PALM:
@@ -223,6 +254,7 @@ class GestureDetector:
         s.reset_pinch()
         s.reset_scroll()
         s.reset_palm()
+        self._depth_tap.reset()
         return events
 
     def _handle_open_palm(

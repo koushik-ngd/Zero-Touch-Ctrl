@@ -860,6 +860,9 @@ class HandCtrlApp:
                 gesture_name = "GESTURE CONTROL PAUSED"
 
             lm_array = hand.landmark_array if hand is not None else None
+            # Draw holographic ripple visual effects
+            self._gesture_detector.draw_effects(display)
+
             self._root.after(0, self._camera_panel.update_frame, display, None, None)
             self._root.after(0, self._update_hud_labels, gesture_name, state_name, conf, self._camera.fps)
             self._root.after(
@@ -880,7 +883,7 @@ class HandCtrlApp:
 
         # State badge formatting
         self._state_badge.configure(text=state)
-        if state in ("CURSOR", "DRAGGING", "SCROLLING", "PEN_ACTIVE", "PEN_CLICK"):
+        if state in ("CURSOR", "DRAGGING", "SCROLLING", "PEN_ACTIVE", "PEN_CLICK", "TAP_DETECTED"):
             self._state_badge.configure(bg=COLOR_GREEN_BG, fg=COLOR_GREEN)
         elif state == "PAUSED":
             self._state_badge.configure(bg=COLOR_AMBER_BG, fg=COLOR_AMBER)

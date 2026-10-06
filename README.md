@@ -13,6 +13,7 @@ All processing happens locally on device — zero cloud APIs, zero telemetry, no
 | Gesture | Action |
 |---|---|
 | ☝️ Index finger | Move cursor |
+| 🫵 3D Depth Tap (Push forward) | Left click ("touch thin air") |
 | 🤏 Pinch (thumb + index) | Left click |
 | 🤏 Pinch + move | Drag & drop |
 | ✌️ Two fingers (index + middle) | Scroll |
@@ -23,11 +24,18 @@ All processing happens locally on device — zero cloud APIs, zero telemetry, no
 
 **Emergency hotkey:** `Ctrl + Alt + H` — instantly toggles gesture control on/off.
 
+### 🫵 3D Depth Tap ("Virtual Touchscreen in Thin Air")
+- **Touch the Air:** Point your index finger to aim, then push forward toward the webcam along the Z-axis to "tap" an invisible floating glass screen.
+- **Adaptive Z-Depth Tracking:** Computes index tip depth relative to knuckle joints and wrist with an auto-updating resting baseline that adapts whether you sit close or far.
+- **Anti-Jitter Aim Freeze:** Dynamically locks cursor (x, y) coordinates during the forward punch stroke so clicks hit the exact button you aimed at without drift.
+- **Sci-Fi Ripple Shockwaves:** Renders animated expanding holographic cyan/green ripple rings right on your camera preview when you tap.
+- **Full Customization:** Toggle on/off or fine-tune sensitivity directly from the Settings panel.
+
 ### 🏝️ Floating Dynamic Island HUD (Mini-Mode)
 - **Minimalist Floating Pill:** Raycast / macOS Dynamic Island inspired widget docked at the top of your screen.
 - **Real-Time Hand Skeleton Wireframe:** Dynamic 46x46 micro canvas rendering 21 articulated hand joints and glowing fingertips with auto-centering and scaling.
 - **Always-on-Top & Draggable:** Freely drag and reposition the pill anywhere across multiple monitors.
-- **Live Status Badges:** Dynamic emojis (☝️, 🤏, ✌️, ✋, 👍, 🖊️), confidence percentage, and state indicators.
+- **Live Status Badges:** Dynamic emojis (☝️, 🫵, 🤏, ✌️, ✋, 👍, 🖊️), confidence percentage, and state indicators.
 - **Seamless Window Switching:** Click `🏝️ MINI HUD` to minimize the main window into the floating island, and click `⛶` to expand back to the full control panel at any time.
 - **Quick Controls:** Direct ON/OFF toggle and clean exit (`✕`) right from the floating pill.
 
@@ -108,6 +116,7 @@ hand-gesture-control/
     │
     ├── gestures/
     │   ├── gesture_detector.py      # Gesture classification & state machine
+    │   ├── depth_tap.py             # 3D Depth Tap ("Air Tap") Z-axis detector
     │   ├── gesture_state.py         # State enums & data classes
     │   └── gesture_utils.py         # Finger detection math
     │

@@ -116,6 +116,8 @@ class Settings:
     enable_thumbs_up: bool = True
     enable_swipe: bool = True
     enable_palm_pause: bool = True
+    enable_depth_tap: bool = True
+    depth_tap_threshold: float = 0.045
 
     def save(self, path: Optional[Path] = None) -> None:
         target = path or CONFIG_FILE

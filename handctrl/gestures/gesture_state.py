@@ -27,6 +27,7 @@ class GestureState(Enum):
     PAUSED = auto()  # open-palm pause
     THUMBS_UP = auto()
     SWIPING = auto()
+    TAP_DETECTED = auto()
     DISABLED = auto()
 
 
@@ -35,6 +36,7 @@ class GestureName(Enum):
 
     NONE = "NONE"
     INDEX_CURSOR = "INDEX CURSOR"
+    AIR_TAP = "AIR TAP"
     PINCH = "PINCH"
     TWO_FINGERS = "TWO FINGERS"
     OPEN_PALM = "OPEN PALM"

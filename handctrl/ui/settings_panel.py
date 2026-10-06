@@ -152,6 +152,9 @@ class SettingsPanel:
         self._det_conf_var, self._det_val_lbl = self._add_slider(
             content, "Min detection confidence", 0.40, 0.95, s.detection_confidence, 0.05, self._on_det_conf
         )
+        self._depth_tap_var, self._depth_tap_val_lbl = self._add_slider(
+            content, "3D Air Tap sensitivity", 0.02, 0.09, getattr(s, "depth_tap_threshold", 0.045), 0.005, self._on_depth_tap_sens
+        )
 
         # ===================================================================
         # SECTION: GESTURE TOGGLES
@@ -160,6 +163,9 @@ class SettingsPanel:
 
         self._toggle_cursor_var = self._add_toggle(
             content, "Cursor movement (Index finger)", s.enable_cursor, self._on_toggle_cursor
+        )
+        self._toggle_depth_tap_var = self._add_toggle(
+            content, "🫵 3D Depth Tap (Push to click)", getattr(s, "enable_depth_tap", True), self._on_toggle_depth_tap
         )
         self._toggle_click_var = self._add_toggle(
             content, "Left click (Pinch)", s.enable_click, self._on_toggle_click
@@ -416,6 +422,14 @@ class SettingsPanel:
 
     def _on_toggle_pause(self, state: bool) -> None:
         self._settings.enable_palm_pause = state
+        self._fire_change()
+
+    def _on_toggle_depth_tap(self, state: bool) -> None:
+        self._settings.enable_depth_tap = state
+        self._fire_change()
+
+    def _on_depth_tap_sens(self, val: str) -> None:
+        self._settings.depth_tap_threshold = float(val)
         self._fire_change()
 
     def _on_calibrate_click(self) -> None:

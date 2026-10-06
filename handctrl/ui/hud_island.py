@@ -59,6 +59,7 @@ GESTURE_EMOJIS = {
     "PEN (YELLOW)": "🖊️",
     "PEN (CUSTOM)": "🖊️",
     "AIR PEN (GRIP)": "✍️",
+    "AIR TAP": "🫵",
     "NONE": "💤",
 }
 
